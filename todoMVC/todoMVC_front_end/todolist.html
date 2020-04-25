@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<title>todolist</title>
+
+</head>
+<link rel="stylesheet" href="./lib/bootstrap-3.3.7-dist/css/bootstrap.min.css">
+<script type="text/javascript" src="./lib/vue.min.js"></script>
+
+<script type="text/javascript" src="./lib/axios.min.map"></script>
+<script type="text/javascript" src="./lib/axios.min.js"></script>
+<style>
+	[v-cloak] {
+		display: none;
+	}
+
+	.deleted {
+		text-decoration-line: line-through;
+		color: #bbb;
+	}
+</style>
+
+<body>
+	<div class="container" id="app" v-cloak>
+		<div class="row">
+			<div class="col-md-6 col-md-offset-3">
+				<form class="form-horizontal" method="post">
+					<hr>
+					<div class="page-header">
+						<h1>备忘录
+							<small class="col-md-offset-5">From doubley</small>
+						</h1>
+					</div>
+					<div class="form-group">
+						<input type="text" class="form-control" placeholder="在此输入待办事项" @keydown.enter.prevent="addTodo"
+							v-model="todoObj">
+					</div>
+					<hr>
+					<div class="form-group">
+						<ul class="list-group" v-for="(item, index) in todoList" :key="index">
+							<li class="list-group-item col-md-12"
+								v-show="defaultShow||(selected?item.isSelected:!item.isSelected)">
+								<!-- <input type="checkbox" class=" pull-left" v-model="item.isSelected"> -->
+								<input type="checkbox" class=" pull-left" @click="check(item)" v-model="item.isSelected">
+								<div class="col-md-11">
+									<input type="text" class="form-control" v-model="item.value" v-show="item.isEdited"
+										v-focus="item.value" @blur="finishEdit(item)">
+								</div>
+								<div class="col-md-11" v-show="!item.isEdited" @dblclick="toEdit(item)"
+									:class="{ deleted:item.isSelected }">{{ item.value }}</div>
+								<span class="close pull-right" @click="delTodo(index)">&times;</span>
+							</li>
+						</ul>
+						<div class="list-group-item col-md-12 " v-show="todoList.length!==0">
+							<span class="col-md-2" v-show="counts===1">{{ counts }} item</span>
+							<span class="col-md-2" v-show="counts===0||counts>1">{{ counts }} items</span>
+							<span class="col-md-2" @click="selectAll">select all</span>
+							<span class="col-md-offset-2">
+								<a class="btn btn-xs" v-for="(item, index) in options" :key="index"
+									@click="screenList(index)">
+									{{ item }}
+								</a>
+							</span>
+							<span class="col-md-1 pull-right btn btn-default btn-xs"
+								@click="clear"><small>Clear</small></span>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+</body>
+<script>
+	var vm = new Vue({
+		el: "#app",
+		data: {
+			host: "http://182.92.219.208:8001",
+			todoObj: "",
+			selected: true,
+			defaultShow: true,
+			todoList: [],
+			options: ["All", "Active", "Completed"],
+			count: 0,
+		},
+		methods: {
+			addTodo(index) {
+				if (this.todoObj === "") {
+					return
+				}
+				// this.todoList = this.todoList.concat({
+				// 	value: this.todoObj,
+				// 	isEdited: false,
+				// 	isSelected: false,
+				// })
+				this.addTodoObj()
+				this.todoObj = ""
+			},
+			delTodo(index) {
+				// this.todoList.splice(index, 1)
+				value = this.todoList[index].value
+				this.delTodoObj(value)
+			},
+			toEdit(item) {
+				item.isEdited = true
+			},
+			finishEdit(item) {
+				item.isEdited = false
+				this.uploadTodolist()
+			},
+			check(item){
+				item.isSelected = !item.isSelected
+				this.uploadTodolist()
+			},
+			screenList(index) {
+				if (this.options[index] === "Active") {
+					this.defaultShow = false
+					this.selected = false
+				} else if (this.options[index] === "Completed") {
+					this.defaultShow = false
+					this.selected = true
+				} else if (this.options[index] === "All") {
+					this.defaultShow = true
+				}
+			},
+			clear() {
+				this.todoList = this.todoList.filter(function (item) {
+					return item.isSelected === false
+				})
+				this.uploadTodolist()
+			},
+			selectAll() {
+				if (this.counts === 0) {
+					this.todoList.map(function (item) {
+						item.isSelected = !item.isSelected
+					})
+				} else {
+					this.todoList.map(function (item) {
+						item.isSelected = true
+					})
+				}
+			},
+			getTodoList() {
+				axios.get(this.host + "/").then(respose => {
+					if (respose.data.status === 200) {
+						this.todoList = respose.data.todolist
+					} else {
+						alert(respose.data.msg)
+					}
+				})
+			},
+			uploadTodolist() {
+				axios.post(this.host + "/uploadTodolist/", JSON.stringify({
+					"todolist": this.todoList
+				})).then(respose => {
+					if (respose.data.status === 200) {
+						//从后台更新数据
+						this.getTodoList()
+					} else {
+						alert(respose.data.msg)
+					}
+				})
+			},
+			addTodoObj() {
+				axios.post(this.host + "/addTodoObj/", JSON.stringify({
+					"value": this.todoObj,
+					"isEdited": false,
+					"isSelected": false,
+				})).then(respose => {
+					if (respose.data.status === 200) {
+						//从后台更新数据
+						this.getTodoList()
+					} else {
+						alert(respose.data.msg)
+					}
+				})
+			},
+			delTodoObj(value) {
+				axios.post(this.host + "/delTodoObj/", JSON.stringify({
+					"value": value
+				})).then(respose => {
+					if (respose.data.status === 200) {
+						//从后台更新数据
+						this.getTodoList()
+					} else {
+						alert(respose.data.msg)
+					}
+				})
+			}
+		},
+		mounted() {
+			this.getTodoList()
+		},
+		destroyed() {
+			this.uploadTodolist()
+		},
+		directives: {
+			"focus": function (el, binding) {
+				if (binding.value) {
+					el.focus()
+				}
+			}
+		},
+		computed: {
+			counts: function () {
+				let count = 0
+				for (let i = 0; i < this.todoList.length; i++) {
+					if (this.todoList[i].isSelected !== true) {
+						count++
+					}
+				}
+				return count
+			}
+		}
+
+	})
+	function check(obj) {
+		if (obj.checked) {
+			vm.uploadTodolist();
+		} else {
+			vm.uploadTodolist();
+		}
+	}
+</script>
+
+</html>
